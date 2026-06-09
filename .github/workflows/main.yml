@@ -3,7 +3,7 @@ name: HidenCloud Auto Renew
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 03 * * 6'
+    - cron: '30 03 * * 1'
 
 permissions:
   actions: write
