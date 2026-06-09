@@ -3,6 +3,7 @@
 ## 配置
 
 在 main.py中修改18行里的服务器id
+
 在仓库 `Settings → Secrets and variables → Actions` 中添加以下 Secrets：
 
 | Secret 名称 | 必填 | 说明 | 示例 |
