@@ -332,7 +332,7 @@ jobs:
 
       - name: Run Renew Script with XVFB
         env:
-          TG_BOT_TOKEN: ${{ secrets.G_BOT_TOKEN }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           HIDENCLOUD_COOKIE: ${{ secrets.HIDENCLOUD_COOKIE }}
           HIDENCLOUD_EMAIL: ${{ secrets.HIDENCLOUD_EMAIL }}
