@@ -32,9 +32,18 @@ def send_telegram_notification(account, old_due, new_due):
         log("⚠️ Telegram 配置缺失，跳过通知")
         return False
 
+    if '@' in HIDENCLOUD_EMAIL:
+        name, domain = HIDENCLOUD_EMAIL.split('@', 1)
+        if len(name) > 4:
+            masked_email = f"{name[:2]}****{name[-2:]}@{domain}"
+        else:
+            masked_email = f"{name}@{domain}"
+    else:
+        masked_email = EMAIL[:2] + '****' 
+    
     text = (
-        f"🎉 HidenCloud 自动续期成功\n"
-        f"👤 账号：{account}\n"
+        f"🇺🇸 HidenCloud 自动续期成功\n\n"
+        f"👤 账号：{masked_email}\n"
         f"🕒 续期时间：{time.strftime('%Y-%m-%d %H:%M:%S')}\n"
         f"📅 续期前到期：{old_due}\n"
         f"📅 续期后到期：{new_due}"
