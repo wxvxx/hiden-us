@@ -370,7 +370,7 @@ def renew_service(page):
         create_btn = page.locator('button:has-text("Create Invoice"):visible').first
 
         modal_opened = False
-        for i in range(3):
+        for i in range(6):
             try:
                 renew_btn.wait_for(state="visible", timeout=10000)
                 renew_btn.scroll_into_view_if_needed()
