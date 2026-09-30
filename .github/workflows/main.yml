@@ -46,12 +46,19 @@ jobs:
         # 使用 xvfb 模拟显示器
         run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python -u main.py
 
-      - name: Upload error artifacts
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: error-screenshots
-          path: "*.png"
+      # 更新时间到time.txt,避免6个个月未更新导致工作流暂停
+      - name: 更新时间
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "$(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M:%S')" > time.txt
+          git add time.txt
+          if git diff --cached --quiet; then
+            echo "无变化，无需提交"
+          else
+            git commit -m "⏱️ 更新时间文件: $(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M:%S')"
+            git push origin main
+          fi
 
       # 清理历史运行记录
       - name: Clean up old workflow runs
