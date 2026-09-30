@@ -13,7 +13,7 @@ except Exception:
 
 # --- 环境变量 ---
 HIDENCLOUD_COOKIE = os.environ.get('HIDENCLOUD_COOKIE') or ""    # remember_web cookie 值，必填
-HIDENCLOUD_EMAIL        = os.environ.get('HIDENCLOUD_EMAIL') or "6886766@gmail.com"           # 登录邮箱,可选，作为备用,TG通知需要填写
+HIDENCLOUD_EMAIL  = os.environ.get('HIDENCLOUD_EMAIL') or "6886766@gmail.com"           # 登录邮箱,可选，作为备用,TG通知需要填写
 HIDENCLOUD_PASSWORD     = os.environ.get('HIDENCLOUD_PASSWORD') or "Qaz567890@"        # 登录密码,可选，作为备用
 TG_BOT_TOKEN = os.environ.get('TG_BOT_TOKEN') or ""    # Telegram Bot Token,可选
 TG_CHAT_ID   = os.environ.get('TG_CHAT_ID') or ""      # Telegram Chat ID,可选
@@ -171,38 +171,50 @@ def wait_page_ready(page, goal, timeout=180, tag="页面", first_wait=8, click_i
                     reload_after=35, max_reloads=2):
     """
     等待目标状态（登录表单出现 / dashboard 打开），期间处理 Cloudflare 安全验证：
-    先等验证框自动通过（默认 8 秒），没通过就点验证框，长时间无进展则重新加载页面。
+    先等验证框自动通过（默认 8 秒），没通过就点验证框；
+    一直没进展（验证框压根没出来，或点了多次仍拿不到 token）就重新加载页面重试。
     """
     deadline = time.time() + timeout
     next_click = time.time() + first_wait
     next_log = time.time() + 15
-    last_progress = time.time()
+    last_activity = time.time()
+    first_click = None
+    clicks = 0
     reloads = 0
     while time.time() < deadline:
         if goal():
             return True
-        if _turnstile_box(page):
-            last_progress = time.time()
+        has_widget = _turnstile_box(page) is not None
+        if has_widget:
+            last_activity = time.time()
             if time.time() >= next_click and not turnstile_token(page):
                 click_turnstile(page)
+                clicks += 1
+                first_click = first_click or time.time()
                 next_click = time.time() + click_interval + random.uniform(0, 3)
-        elif reload_after and time.time() - last_progress > reload_after and reloads < max_reloads:
-            reloads += 1
-            last_progress = time.time()
-            log(f"🔄 {tag}：{int(reload_after)}s 无进展，重新加载页面（第 {reloads} 次）")
-            try:
-                page.reload(wait_until="domcontentloaded", timeout=60000)
-            except Exception as e:
-                log(f"⚠️ 页面重新加载失败: {e}")
-        elif time.time() - last_progress > 3:
+        elif time.time() - last_activity > 3:
             try:    # 页面没有验证框时轻微动一下鼠标，保持“有人在使用”的状态
                 page.mouse.move(random.randint(80, 900), random.randint(80, 600), steps=5)
             except Exception:
                 pass
+
+        if reload_after and reloads < max_reloads:
+            stuck_no_widget = not has_widget and time.time() - last_activity > reload_after
+            stuck_no_token = clicks >= 3 and first_click and time.time() - first_click > 90
+            if stuck_no_widget or stuck_no_token:
+                reloads += 1
+                last_activity = time.time()
+                first_click, clicks = None, 0
+                log(f"🔄 {tag}：长时间没有进展，重新加载页面（第 {reloads} 次）重试")
+                try:
+                    page.reload(wait_until="domcontentloaded", timeout=60000)
+                except Exception as e:
+                    log(f"⚠️ 页面重新加载失败: {e}")
+
         if time.time() >= next_log:
             next_log = time.time() + 15
             log(f"⏳ {tag}：等待中（剩余 {int(deadline - time.time())}s，"
-                f"token={'已获取' if turnstile_token(page) else '未获取'}）")
+                f"token={'已获取' if turnstile_token(page) else '未获取'}，已点击 {clicks} 次）")
         time.sleep(0.4)
     return False
 
@@ -227,9 +239,9 @@ def solve_turnstile(page, timeout=90, tag="Cloudflare Turnstile", wait_appear=0)
     log(f"❌ {tag}未通过")
     return False
 
-def handle_cloudflare(page):
-    """页面跳转后处理可能出现的 Cloudflare Turnstile 验证"""
-    return solve_turnstile(page, timeout=90, tag="Cloudflare Turnstile")
+def handle_cloudflare(page, timeout=60):
+    """页面跳转后处理可能出现的 Cloudflare Turnstile 验证（页面内容能读到就不用等他）"""
+    return solve_turnstile(page, timeout=timeout, tag="Cloudflare Turnstile")
 
 def _dashboard_ready(page):
     """dashboard 是否已加载出服务列表"""
@@ -244,14 +256,15 @@ def _dashboard_ready(page):
 
 def _click_my_account(page):
     """点击右上角 “My Account”（账号密码登录后可能先落在官网首页）"""
-    try:
-        btn = page.locator('a:has-text("My Account"), button:has-text("My Account")').first
-        if btn.count() > 0 and btn.is_visible():
-            log("🖱️ 点击右上角 “My Account” 进入 dashboard...")
-            btn.click()
-            return True
-    except Exception as e:
-        log(f"⚠️ 点击 “My Account” 失败: {e}")
+    for locator in (page.locator('a:has-text("My Account"), button:has-text("My Account")').first,
+                    page.get_by_text("My Account", exact=True).first):
+        try:
+            if locator.count() > 0 and locator.is_visible():
+                log("🖱️ 点击右上角 “My Account” 进入 dashboard...")
+                locator.click()
+                return True
+        except Exception as e:
+            log(f"⚠️ 点击 “My Account” 失败: {e}")
     return False
 
 def goto_dashboard(page, timeout=180):
@@ -364,24 +377,30 @@ def login(page):
 
 def get_server_id(page):
     try:
-        handle_cloudflare(page)
         time.sleep(3)
-        html = page.content()
-        log(f"📝 页面长度: {len(html)}, URL: {page.url}")
+        for attempt in range(2):
+            html = page.content()
+            log(f"📝 页面长度: {len(html)}, URL: {page.url}")
 
-        # 方案1: 从 href 链接中提取 /service/数字/manage
-        matches = re.findall(r'/service/(\d+)/manage', html)
-        if matches:
-            server_id = matches[0]
-            log(f"✅ 从链接中获取到 Server ID: {server_id}")
-            return server_id
+            # 方案1: 从 href 链接中提取 /service/数字/manage
+            matches = re.findall(r'/service/(\d+)/manage', html) or re.findall(r'/service/(\d+)', html)
+            if matches:
+                server_id = matches[0]
+                log(f"✅ 从链接中获取到 Server ID: {server_id}")
+                return server_id
 
-        # 方案2: 从 span 标签中提取 #数字 (如 "Free Server #218079")
-        matches = re.findall(r'#(\d{4,})', html)
-        if matches:
-            server_id = matches[0]
-            log(f"✅ 从文本 #号中获取到 Server ID: {server_id}")
-            return server_id
+            # 方案2: 从 span 标签中提取 #数字 (如 "Free Server #218079")
+            matches = re.findall(r'#(\d{4,})', html)
+            if matches:
+                server_id = matches[0]
+                log(f"✅ 从文本 #号中获取到 Server ID: {server_id}")
+                return server_id
+
+            if attempt == 0:
+                # 页面可能没加载完或在过验证，处理验证后再读一次
+                log("⚠️ 未找到 Server ID，处理页面验证后重试...")
+                handle_cloudflare(page, timeout=60)
+                time.sleep(3)
 
         log("❌ 所有 URL 均未找到 Server ID")
         return None
@@ -394,22 +413,61 @@ def get_due_date(page):
     try:
         if SERVICE_URL not in page.url:
             page.goto(SERVICE_URL, wait_until="domcontentloaded", timeout=60000)
-        handle_cloudflare(page)
-        body_text = page.locator("body").inner_text()
         patterns = [
             r"Due date\s+(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})",
             r"Due date\s*\n\s*(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})",
             r"Due date.*?(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})",
         ]
-        for pattern in patterns:
-            match = re.search(pattern, body_text, re.IGNORECASE | re.DOTALL)
-            if match:
-                due_date = match.group(1).strip()
-                log(f"📅 获取到Due Date: {due_date}")
-                return due_date
+        for attempt in range(2):
+            body_text = page.locator("body").inner_text()
+            for pattern in patterns:
+                match = re.search(pattern, body_text, re.IGNORECASE | re.DOTALL)
+                if match:
+                    due_date = match.group(1).strip()
+                    log(f"📅 获取到Due Date: {due_date}")
+                    return due_date
+            if attempt == 0:
+                # 页面可能没加载完或在过验证，处理验证后再读一次
+                log("⚠️ 未读取到 Due Date，处理页面验证后重试...")
+                handle_cloudflare(page, timeout=60)
+                time.sleep(3)
     except Exception as e:
         log(f"❌ 获取Due Date失败: {e}")
     return "未知"
+
+def _wait_page_scripts(page, timeout=30):
+    """等服务页脚本加载完成：Flowbite 没就绪时点 Renew 没有任何反应"""
+    deadline = time.time() + timeout
+    state = {}
+    while time.time() < deadline:
+        try:
+            state = page.evaluate(
+                "() => ({ready: document.readyState,"
+                " fb: typeof window.Flowbite !== 'undefined' || typeof window.flowbite !== 'undefined'})")
+        except Exception:
+            state = {}
+        if state.get('fb') or state.get('ready') == 'complete':
+            log("✅ 页面脚本已就绪")
+            return True
+        time.sleep(1)
+    log(f"⚠️ 页面脚本等待超时（{state}），继续尝试")
+    return False
+
+def _show_renew_modal_by_dom(page):
+    """兜底：页面脚本没就绪（点 Renew 没反应）时，直接把续期弹窗元素显示出来"""
+    try:
+        return bool(page.evaluate("""() => {
+            const btn = Array.from(document.querySelectorAll('button')).find(
+                b => (b.innerText || '').trim() === 'Renew' && b.getAttribute('data-modal-target'));
+            const modal = btn ? document.getElementById(btn.getAttribute('data-modal-target')) : null;
+            if (!modal) return false;
+            modal.classList.remove('hidden');
+            modal.setAttribute('aria-hidden', 'false');
+            modal.style.display = 'flex';
+            return true;
+        }"""))
+    except Exception:
+        return False
 
 def renew_service(page):
 
@@ -417,19 +475,29 @@ def renew_service(page):
         log("➡ 进入续期流程...")
         if page.url != SERVICE_URL:
             page.goto(SERVICE_URL, wait_until="domcontentloaded", timeout=60000)
-        handle_cloudflare(page)
+
+        log("⏳ 等待服务页加载完成（Renew 是弹窗按钮，页面脚本没就绪时点了没反应）...")
+        _wait_page_scripts(page, timeout=30)
+        time.sleep(2)
 
         log("🖱️ 准备点击 'Renew' 按钮...")
         renew_btn = page.locator('button:has-text("Renew")')
         create_btn = page.locator('button:has-text("Create Invoice"):visible').first
 
+        # 按钮还没出来说明页面可能卡在验证上，先处理验证
+        try:
+            renew_btn.first.wait_for(state="visible", timeout=15000)
+        except Exception:
+            log("⚠️ 未找到 Renew 按钮，处理页面验证后重试...")
+            handle_cloudflare(page, timeout=90)
+
         modal_opened = False
-        for i in range(6):
+        for i in range(4):
             try:
-                renew_btn.wait_for(state="visible", timeout=10000)
-                renew_btn.scroll_into_view_if_needed()
+                renew_btn.first.wait_for(state="visible", timeout=15000)
+                renew_btn.first.scroll_into_view_if_needed()
                 log(f"🖱️ 第 {i+1} 次尝试点击 'Renew'...")
-                renew_btn.click()
+                renew_btn.first.click()
 
                 # 等待一小段时间，检测是否出现“未到续期时间”弹窗
                 time.sleep(2)
@@ -441,15 +509,26 @@ def renew_service(page):
 
                 log("🖲️ 等待弹窗出现...")
                 try:
-                    create_btn.wait_for(state="visible", timeout=5000)
+                    create_btn.wait_for(state="visible", timeout=15000)
                     modal_opened = True
                     log("✅ 弹窗已成功弹出！")
                     break
-                except:
-                    log("⚠️ 弹窗未出现，可能是点击未响应，准备重试...")
-                    time.sleep(2)
+                except Exception:
+                    log("⚠️ 弹窗未出现，可能是页面脚本还没就绪，准备重试...")
+                    _wait_page_scripts(page, timeout=10)
             except Exception as e:
                 log(f"❌ 点击尝试出错: {e}")
+
+        if not modal_opened:
+            # 兜底：页面脚本没就绪时点击无效，直接把弹窗元素显示出来
+            log("🖱️ 直接显示续期弹窗（跳过页面脚本）...")
+            if _show_renew_modal_by_dom(page):
+                try:
+                    create_btn.wait_for(state="visible", timeout=10000)
+                    modal_opened = True
+                    log("✅ 续期弹窗已显示")
+                except Exception:
+                    log("⚠️ 直接显示弹窗后仍未找到 'Create Invoice'")
 
         if not modal_opened:
             log("❌ 错误：尝试多次后，续费弹窗仍未出现。")
@@ -610,4 +689,3 @@ def main():
                 
 if __name__ == "__main__":
     main()
-
