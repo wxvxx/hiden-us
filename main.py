@@ -13,8 +13,8 @@ except Exception:
 
 # --- 环境变量 ---
 HIDENCLOUD_COOKIE = os.environ.get('HIDENCLOUD_COOKIE') or ""    # remember_web cookie 值，必填
-HIDENCLOUD_EMAIL  = os.environ.get('HIDENCLOUD_EMAIL') or "6886766@gmail.com"           # 登录邮箱,可选，作为备用,TG通知需要填写
-HIDENCLOUD_PASSWORD     = os.environ.get('HIDENCLOUD_PASSWORD') or "Qaz567890@"        # 登录密码,可选，作为备用
+HIDENCLOUD_EMAIL  = os.environ.get('HIDENCLOUD_EMAIL') or ""           # 登录邮箱,可选，作为备用,TG通知需要填写
+HIDENCLOUD_PASSWORD     = os.environ.get('HIDENCLOUD_PASSWORD') or ""        # 登录密码,可选，作为备用
 TG_BOT_TOKEN = os.environ.get('TG_BOT_TOKEN') or ""    # Telegram Bot Token,可选
 TG_CHAT_ID   = os.environ.get('TG_CHAT_ID') or ""      # Telegram Chat ID,可选
 
@@ -478,7 +478,7 @@ def renew_service(page):
 
         log("⏳ 等待服务页加载完成（Renew 是弹窗按钮，页面脚本没就绪时点了没反应）...")
         _wait_page_scripts(page, timeout=30)
-        time.sleep(2)
+        time.sleep(12) # 等待页面完全加载
 
         log("🖱️ 准备点击 'Renew' 按钮...")
         renew_btn = page.locator('button:has-text("Renew")')
