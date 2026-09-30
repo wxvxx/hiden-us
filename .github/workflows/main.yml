@@ -27,7 +27,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb
-          pip install playwright requests
+          pip install playwright requests 'requests[socks]'
           python -m playwright install --with-deps chrome
           
       - name: Install proxy and use it
