@@ -3,7 +3,7 @@ name: HidenCloud Auto Renew
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 03 * * 1'
+    - cron: '30 22 * * 2'
 
 permissions:
   actions: write
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   Renew-service:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
