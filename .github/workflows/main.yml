@@ -1,27 +1,31 @@
-name: HidenCloud Auto Renew
+name: Auto Renew HidenCloud
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 22 * * 2'
+    - cron: '00 23 * * 2' 
 
 permissions:
+  contents: write
   actions: write
-  contents: read
 
 jobs:
-  Renew-service:
+  renew-hiden:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
 
       - name: ⚙ 设置 Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: 🛠️ 安装系统依赖和python依赖
         run: |
@@ -29,7 +33,7 @@ jobs:
           sudo apt-get install -y xvfb
           pip install patchright requests 'requests[socks]'
           python -m patchright install --with-deps chrome
-          
+
       - name: ⚙ 设置sing-box代理
         continue-on-error: true
         env:
@@ -37,15 +41,14 @@ jobs:
         run: |
           bash <(wget -qO- https://main.ssss.nyc.mn/setup_proxy.sh)
 
-      - name: Run Renew Script with XVFB
+      - name: 🚀 运行续期脚本
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           HIDENCLOUD_COOKIE: ${{ secrets.HIDENCLOUD_COOKIE }}
           HIDENCLOUD_EMAIL: ${{ secrets.HIDENCLOUD_EMAIL }}
           HIDENCLOUD_PASSWORD: ${{ secrets.HIDENCLOUD_PASSWORD }}
-        # 使用 xvfb 模拟显示器
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python -u main.py
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python -u app.py
 
       # 更新时间到time.txt,避免6个月未更新导致工作流暂停
       - name: 🕒 更新时间
@@ -60,7 +63,7 @@ jobs:
             git commit -m "⏱️ Auto Update by Github Actions $(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M:%S')"
             git push origin main
           fi
-
+      
       - name: 🧹 清理旧的工作流运行记录
         if: always()
         env:
