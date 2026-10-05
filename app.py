@@ -10,9 +10,9 @@ except ImportError:
     USING_PATCHRIGHT = False
 
 # --- 环境变量 ---
-COOKIE_VALUE = os.environ.get('COOKIE_VALUE') or ""  
-EMAIL        = os.environ.get('EMAIL') or ""         # 登录邮箱,可选，作为备用, 建议填写
-PASSWORD     = os.environ.get('PASSWORD') or ""      # 登录密码,可选，作为备用, 建议填写
+COOKIE_VALUE = os.environ.get('HIDENCLOUD_COOKIE') or ""  
+EMAIL        = os.environ.get('HIDENCLOUD_EMAIL') or ""         # 登录邮箱,可选，作为备用, 建议填写
+PASSWORD     = os.environ.get('HIDENCLOUD_PASSWORD') or ""      # 登录密码,可选，作为备用, 建议填写
 TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN") or ""
 TG_CHAT_ID   = os.environ.get("TG_CHAT_ID") or ""   
 
