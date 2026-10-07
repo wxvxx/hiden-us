@@ -58,7 +58,7 @@ def get_current_ip(proxy_server=None):
         log(f"❌ 获取出口IP失败: {e}")
         return "获取失败"
 
-def send_telegram_notification(status, old_due, new_due):
+def send_telegram_notification(status, old_due, new_due, current_ip="未知"):
     """发送 Telegram 通知"""
     if not TG_BOT_TOKEN or not TG_CHAT_ID:
         log("⚠️ Telegram 未配置，跳过通知")
@@ -82,6 +82,7 @@ def send_telegram_notification(status, old_due, new_due):
         f"👤 账号: {masked_email}\n"
         f"📅 续期前到期：{old_due}\n"
         f"📅 续期后到期：{new_due}\n"
+        f"🌐 续期使用IP: {current_ip}\n"
         f"🕒 续期时间：{now}"
     )
     url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
@@ -706,7 +707,7 @@ def main():
                 status = "✅ 续期成功"
 
             # 发送 Telegram 通知
-            send_telegram_notification(status, old_due, new_due)
+            send_telegram_notification(status, old_due, new_due, current_ip)
 
             if renew_result == "NOT_TIME":
                 sys.exit(0)
